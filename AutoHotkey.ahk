@@ -98,14 +98,6 @@
   ^m::ControlFocus SysTreeView321 ;Media library
 #IfWinActive
 
-;AppsKey::RWin
-;AppsKey Up::
-;  if (A_PriorKeyEvent = "RWin")
-;    Send {Blind}{Ctrl}{RWin Up}{AppsKey}
-;  else
-;    Send {Blind}{RWin Up}
-;return
-
 ;;; Make RWin by itself act as AppsKey
   RWin & Browser_Refresh::return
   RWin::AppsKey
