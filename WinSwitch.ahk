@@ -1,4 +1,6 @@
-;;; Switch between windows of the same 
+;;; Switch between windows of the same class (usually equivalent to same app) using Alt+CapsLock
+;;; More or less equivalent to Mac's Command+` (backtick)
+
   WinSwitch(offset) {
     ; winSwitchList won't retain its value between calls when declared as static (bug in AHK)
     global winSwitchIsActive, winSwitchIndex, winSwitchList
