@@ -4,15 +4,18 @@
 ;;; + = Shift
 
 ;;; Setup
+  ;#Warn All
   #SingleInstance force
   #NoEnv
-  ;#Warn All
+  #WinActivateForce
   SendMode Input
   SetWorkingDir %A_ScriptDir%
   ListLines Off
   SetTitleMatchMode 2 ; Match anywhere in title
 ;;; End setup
-
+  
+;;; Includes
+  #Include WinSwitch.ahk
 
 ;;;Sending any other way than SendPlay causes it to send on keyup rather than keydown
   #\::SendPlay c:\users\russell\
@@ -106,41 +109,9 @@
   Browser_Back::LButton
   Browser_Forward::RButton
 
-;;; Switch between windows in the same app using VistaSwitcher
-;;; (immediately activates windows rather than scrolling through a list)
   #IfWinActive ahk_class mintty
-    +^Tab:: ;Fall through
+    ^+Tab::WinSwitch(-1)
+    ^Tab::WinSwitch(1)
   #IfWinActive
-  +!CapsLock::
-    Send #{F11}
-    WinWaitActive ahk_class VistaSwitcher_SwitcherWnd
-    Send {Blind}{End}{Space}
-  return
-
-  #IfWinActive ahk_class mintty
-    ^Tab:: ;Fall through
-  #IfWinActive
-  !CapsLock::
-    Critical ;Make sure the Up hotkeys don't fire before this is done
-    Send #{F11}
-    WinWaitActive ahk_class VistaSwitcher_SwitcherWnd
-    if (Switching)
-      Send {Blind}{Down}
-    else
-      Switching := True
-    Send {Blind}{Space}
-  return
-
-  ~Ctrl Up::
-    Switching := False
-  return
-  ~Alt Up::
-    Switching := False
-  return
-
-  ;;; Make switcher go away when releasing alt
-  ;#IfWinActive ahk_class VistaSwitcher_SwitcherWnd
-    ;~Alt Up::Send {Space}
-  ;#IfWinActive
 
 ;;;
