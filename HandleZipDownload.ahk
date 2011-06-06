@@ -4,14 +4,13 @@ path = %1%
 EnvGet userDir, USERPROFILE
 SplitPath path, file, , ext, fileNoExt 
 destBaseDir = %userDir%\Downloads
-destDir = %destBaseDir%\%fileNoExt%
-if (FileExist(destDir)) {
-  destDir = %destDir%%A_Now%
-}
+;Append current timestamp to make sure it's a unique name. We'll attempt to rename it without
+;the timestamp later in the script. Doing it this way simplifies some logic.
+destDir = %destBaseDir%\%fileNoExt%-%A_Now%
 
 destPath = %destBaseDir%\%file%
 if (FileExist(destPath)) {
-    destPath = %destBaseDir%\%fileNoExt%%A_Now%.%ext%
+    destPath = %destBaseDir%\%fileNoExt%-%A_Now%.%ext%
 }
 
 FileCopy %path%, %destPath%
@@ -24,4 +23,34 @@ if (RegExMatch(file, ".*\.(tgz|tar(-\d+)?\.gz)$")) { ;Match tar-X.gz to include 
 }
 FileRecycle %destPath%
 
-Run %destDir%
+;;;Smart directory handling
+;;;If there's only a single file and it's a directory, move it up one level
+Loop %destDir%\*.*, 1 ;files & folders
+{ 
+  if (outPath != "") {
+    ;More than one file
+    outPath := ""
+    break
+  }
+  outIsDir := A_LoopFileAttrib contains D
+  outFile := A_LoopFileName
+  outPath := A_LoopFileFullPath
+}
+
+if (outPath != "" && outIsDir) {
+  ;Only one file, and it's a directory, so move it up one level
+  newPath = %destBaseDir%\%outFile%
+  if (FileExist(newPath)) {
+    newPath = %destBaseDir%\%outFile%-%A_Now%-a ;-a at the end so it won't conflict with destDir
+  }
+  FileMoveDir %outPath%, %newPath%, R
+  FileRemoveDir %destDir%
+  Run % newPath
+} else {
+  ;More than one file, or one file that's not a directory.
+  ;Try to name the directory the same as the archive
+  newPath = %destBaseDir%\%fileNoExt%
+  FileMoveDir %destDir%, %newPath%, R
+  Run % (ErrorLevel ? destDir : newPath)
+}
+
