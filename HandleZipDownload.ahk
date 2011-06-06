@@ -8,20 +8,13 @@ destBaseDir = %userDir%\Downloads
 ;the timestamp later in the script. Doing it this way simplifies some logic.
 destDir = %destBaseDir%\%fileNoExt%-%A_Now%
 
-destPath = %destBaseDir%\%file%
-if (FileExist(destPath)) {
-    destPath = %destBaseDir%\%fileNoExt%-%A_Now%.%ext%
-}
-
-FileCopy %path%, %destPath%
 FileCreateDir %destDir%
 
 if (RegExMatch(file, ".*\.(tgz|tar(-\d+)?\.gz)$")) { ;Match tar-X.gz to include automatically renamed tar.gz files (for duplicate downloads)
-  RunWait %comspec% /c ""%7z%" x -so "%destPath%" | "%7z%" x -si -ttar", %destDir%
+  RunWait %comspec% /c ""%7z%" x -so "%path%" | "%7z%" x -si -ttar", %destDir%
 } else {
-  RunWait %7z% x %destPath%, %destDir%
+  RunWait %7z% x %path%, %destDir%
 }
-FileRecycle %destPath%
 
 ;;;Smart directory handling
 ;;;If there's only a single file and it's a directory, move it up one level
