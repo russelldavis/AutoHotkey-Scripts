@@ -17,21 +17,19 @@
 ;;; Includes
   #Include WinSwitch.ahk
 
-;;;Sending any other way than SendPlay causes it to send on keyup rather than keydown
+;;; Sending any other way than SendPlay causes it to send on keyup rather than keydown
   #\::SendPlay c:\users\russell\
 
-;;;
+;;; Minimize active window
   #Escape::WinMinimize,A
 
-;;;
-  ^Escape::
-    if WinActive("ahk_class MozillaUIWindowClass") {
-      RunWait,firefox.exe -unfocus
-      WinActivate ahk_class MozillaUIWindowClass
-    }
-  return
-
-;;; Auto-reloads the script when you save it in an editor with CTRL-s
+;;; Firefox
+  #IfWinActive, ahk_class MozillaWindowClass
+    ;;; Clear and hide the search box
+    ^+f::SendPlay {Control Down}f{Control Up}{Delete}{Escape}
+  #IfWinActive
+  
+;;; Auto-reloads the script when saved in an editor with ctrl+s
   ~^s::
     SetTitleMatchMode 2
     IfWinActive, .ahk
@@ -44,9 +42,18 @@
     }
   return
 
+;;;
+  #+s::ListHotkeys
+
 ;;; IntelliJ/PhpStorm fixes
   #IfWinActive, JetBrains ahk_class SunAwtFrame
     ^f::SendInput ^f^a ;;; Make ctrl+f not suck
+  #IfWinActive
+
+;;; SciTE has issues with some numpad keys
+  #IfWinActive, ahk_class SciTEWindow
+    NumpadAdd::+
+    NumpadSub::-
   #IfWinActive
 
 ;;; Always-On-Top toggle
@@ -72,23 +79,23 @@
 
     ClipSave=%ClipboardAll%
     FileRead, Clipboard, *c %A_ScriptDir%\ahkclipboard\%ClipFile%
-    Send ^v
+    SendPlay ^v
     Clipboard=%ClipSave%
   return
 
 ;;;
-  #q::Send !{F4}
+  #q::SendPlay !{F4}
 ;;;
-  #^a::Run emeditor.exe c:\users\russell\dropbox\progs\ahk\AutoHotkey.ahk
+  #+a::Edit
 
 ;;; Run winamp, load media library, set to local media, focus search box
   #w::
     Run winamp.exe
     WinWaitActive ahk_class BaseWindow_RootWnd
     ControlFocus SysTreeView321 ;Media library
-    Send l
+    SendPlay l
     Sleep 100
-    Send {Tab}
+    SendPlay {Tab}
   return
 
 #IfWinActive, ahk_class BaseWindow_RootWnd ;Winamp
@@ -109,9 +116,13 @@
   Browser_Back::LButton
   Browser_Forward::RButton
 
+;;; Replace mintty's buggy intra-app window switching
   #IfWinActive ahk_class mintty
     ^+Tab::WinSwitch(-1)
     ^Tab::WinSwitch(1)
   #IfWinActive
 
+;;; Show the start menu
+  #+r::Send {Blind}{RWin up}{Shift up}{RWin}
+  
 ;;;
