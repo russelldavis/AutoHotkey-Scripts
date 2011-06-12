@@ -1,6 +1,13 @@
+#NoEnv
+
 7z := "c:\Program Files\7-Zip\7z.exe"
 
 path = %1%
+if (!path) {
+  MsgBox Missing filename
+  exit -1
+}
+
 EnvGet userDir, USERPROFILE
 SplitPath path, file, , ext, fileNoExt 
 destBaseDir = %userDir%\Downloads
