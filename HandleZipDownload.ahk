@@ -32,7 +32,8 @@ Loop %destDir%\*.*, 1 ;files & folders
     outPath := ""
     break
   }
-  outIsDir := A_LoopFileAttrib contains D
+
+  outIsDir := InStr(A_LoopFileAttrib, "D")
   outFile := A_LoopFileName
   outPath := A_LoopFileFullPath
 }
