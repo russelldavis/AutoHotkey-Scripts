@@ -3,42 +3,46 @@
 ;;; ! = Alt
 ;;; + = Shift
 
-;;; Setup
-  ;#Warn All
-  #SingleInstance force
-  #NoEnv
-  #WinActivateForce
-  #Include %A_ScriptDir%  ; Sets the directory for future includes
-  SetWorkingDir %A_ScriptDir%
-  SendMode Input
-  ListLines Off
-  SetTitleMatchMode 2 ; Match anywhere in title
-  
-  WinGet explorerPid, PID, ahk_class Shell_TrayWnd
-  GroupAdd explorer, ahk_pid %explorerPid%
-;;; End setup
-  
-;;; Lib Includes (must come first for auto-execute sections to run)
-  #Include lib\Clipboard.ahk
-  
-;;; Hotkey includes
-  #Include WinSwitch.ahk
+;;;;;;;;;; Setup ;;;;;;;;;;
+;#Warn All
+#SingleInstance force
+#NoEnv
+#WinActivateForce
+#Include %A_ScriptDir%  ; Sets the directory for future includes
+SetWorkingDir %A_ScriptDir%
+SendMode Input
+ListLines Off
+SetTitleMatchMode 2 ; Match anywhere in title
+
+WinGet explorerPid, PID, ahk_class Shell_TrayWnd
+GroupAdd explorer, ahk_pid %explorerPid%
+
+
+;;;;;;;;;; Constants ;;;;;;;;;;
+WM_USER = 0x0400
+WM_WA_IPC = %WM_USER%
+IPC_GET_REPEAT = 251
+IPC_SET_REPEAT = 253
+IPC_STARTPLAY = 102
+
+
+;;;;;;;;;; Lib Includes ;;;;;;;;;; (must come first for auto-execute sections to run)
+#Include lib\Clipboard.ahk
+#Include extern\Functions.ahk
+
+
+;;;;;;;;;; Hotkey includes ;;;;;;;;;;
+#Include WinSwitch.ahk
+
 
 ;;;;;;;;;; Functions ;;;;;;;;;;
 
-Explorer_GetSelectedFile() {
-    ClipboardSave()
-    SendPlay ^c
-    fileName := Clipboard
-    ClipboardRestore()
-    return % fileName
-}
 
 ;;;;;;;;;; Hotkeys ;;;;;;;;;;
-
+;;; Send home dir
 ;;; Sending any other way than SendPlay causes it to send on keyup rather than keydown
 #\::
-  if (A_PriorHotKey = A_ThisHotKey and A_TimeSincePriorHotkey < 3000)
+  if (A_PriorHotKey = A_ThisHotKey and A_TimeSincePriorHotkey < 1000)
     SendPlay dropbox\progs
   else
     SendPlay c:\users\russell\
@@ -50,11 +54,13 @@ Explorer_GetSelectedFile() {
 ;;; Firefox
 #IfWinActive, ahk_class MozillaWindowClass
   ;;; Clear and hide the search box
-  ^+f::SendPlay {Control Down}f{Control Up}{Delete}{Escape}
+  ^+f::Send {Control Down}f{Control Up}{Delete}{Escape}
 #IfWinActive
   
 ;;; Auto-reloads the script when saved in an editor with ctrl+s
 #IfWinActive, AutoHotkey.ahk
+  ~^s::
+#IfWinActive, WinSwitch.ahk
   ~^s::
     ToolTip, Reloading...
     Sleep 500
@@ -83,7 +89,9 @@ Explorer_GetSelectedFile() {
 
 ;;; Paste from saved clipboard files
 #v::
+  ToolTip Clipboard Mode...
   Input, Key, L1,{Esc}{Enter}
+  ToolTip
   if (Key = "s")
       ClipFile=code-span.clip
   else if (Key = "d")
@@ -94,18 +102,19 @@ Explorer_GetSelectedFile() {
       FileAppend, %ClipboardAll%, C:\clipboard.txt ; The file extension doesn't matter.
       return
   } else {
-      SoundBeep
+      if (!InStr(ErrorLevel, "EndKey"))
+        SoundBeep
       return
   }
 
   ClipboardSave()
   FileRead, Clipboard, *c %A_ScriptDir%\ahkclipboard\%ClipFile%
-  SendPlay ^v
+  Send ^v
   ClipboardRestore()
 return
 
 ;;;
-#q::SendPlay !{F4}
+#q::Send !{F4}
   
 ;;; Fix the ridiculously broken play/pause button behavior caused by intellitype
 ;;; (set the button to disabled in the intellitype settings). Must use a keyboard
@@ -113,7 +122,7 @@ return
 ;;; same keystroke and everything works how it should.
 $Media_Play_Pause::
   ; Make sure winamp is runing
-  if (!WinExist(ahk_class BaseWindow_RootWnd)) {
+  if (!WinExist("ahk_class BaseWindow_RootWnd")) {
     Run winamp.exe
     WinWaitActive ahk_class BaseWindow_RootWnd
   }
@@ -126,11 +135,29 @@ return
   DetectHiddenWindows on ;For finding the media library window
   WinWait ahk_class Winamp Gen ;media library window
   WinWaitActive ahk_class BaseWindow_RootWnd ;main window
-  ControlFocus SysTreeView321 ;Media library
-  SendPlay l
+  ControlSend SysTreeView321, l
   Sleep 100
-  SendPlay {Tab}
+  ControlFocus Edit1
 return
+
+;;; Winamp: toggle repeat with status tooltip
+#IfWinExist ahk_class ahk_class Winamp v1.x
+  ^!Ins::
+    SendMessage WM_WA_IPC, 0, IPC_GET_REPEAT
+    if (ErrorLevel != "FAIL") {
+      newVal := 1 - ErrorLevel ; Toggle between 1 and 0
+      SendMessage WM_WA_IPC, newVal, IPC_SET_REPEAT
+      ToolTip2("Repeat: " . (newVal ? "ON" : "OFF"), 2000)
+    }
+  return
+#IfWinExist
+
+;;; Winamp: start playing from the beginning of the playlist. Strangely, this is not exposed
+;;; in the Winamp UI (as far as I can tell). This is slightly different than the exposed
+;;; "Start of list" function which moves to the start of the list but doesn't start playing.
+#IfWinExist ahk_class ahk_class Winamp v1.x
+  ^!Home::PostMessage WM_WA_IPC, 0, IPC_STARTPLAY
+#IfWinExist
 
 ;;; winamp hotkeys
 #IfWinActive, ahk_class BaseWindow_RootWnd
@@ -165,21 +192,28 @@ Browser_Forward::RButton
 #IfWinActive Run ahk_class #32770 ahk_group explorer
   ~Esc:: ;Fallthrough
 #IfWinActive Start menu ahk_class DV2ControlHost
-  ~Esc::SendPlay {Alt down}{Esc}{Alt up}
+  ~Esc::Send !{Esc}
 #IfWinActive
 
-;;; Copy item to shortcuts folder
+;;; Explorer
 #IfWinActive ahk_class CabinetWClass
+  ;;; Copy item to shortcuts folder
   ^s::
-    fileName := Explorer_GetSelectedFile()
+    fileName := GetSelectionViaClipboard()
     SplitPath fileName, , , , nameNoExt
-    EnvGet homeDrive, HOMEDRIVE
-    EnvGet homePath, HOMEPATH
-    shortcutPath := homeDrive . homePath . "\dropbox\progs\shortcuts\" . nameNoExt . ".lnk"
-    FileCreateShortcut % fileName, %shortcutPath% ; wtf, 2nd arg requires %
+    shortcutPath := EnvGet("HOMEDRIVE") . EnvGet("HOMEPATH") . "\dropbox\progs\shortcuts\" . nameNoExt . ".lnk"
+    FileCreateShortcut % fileName, % shortcutPath
     Run explorer /select`,%shortcutPath%
+  return
+  ;;; Edit
+  ^e::Send {AppsKey}e
 #IfWinActive
 
-;;; For testing
+;;; Convert clipboard to plain text
+#c::Clipboard := Clipboard
+
+
+
+;;;;;;;;;; Testing ;;;;;;;;;;
 #Numpad5::
 return
