@@ -1,5 +1,7 @@
-ClipboardSave() {
+ClipboardSave(clear = True) {
   global ClipboardCopy := ClipboardAll
+  if (clear)
+    Clipboard := ""
 }
 
 ClipboardRestore() {
@@ -9,7 +11,6 @@ ClipboardRestore() {
 
 GetSelectionViaClipboard() {
     ClipboardSave()
-    Clipboard := ""
     Send ^c
     ClipWait
     fileName := Clipboard

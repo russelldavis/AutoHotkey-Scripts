@@ -1,6 +1,6 @@
 #NoEnv
 
-7z := "c:\Program Files\7-Zip\7z.exe"
+7z := "7z.exe"
 
 path = %1%
 if (!path) {
@@ -20,7 +20,7 @@ FileCreateDir %destDir%
 if (RegExMatch(file, ".*\.(tgz|tar(-\d+)?\.gz)$")) { ;Match tar-X.gz to include automatically renamed tar.gz files (for duplicate downloads)
   RunWait %comspec% /c ""%7z%" x -so "%path%" | "%7z%" x -si -ttar", %destDir%
 } else {
-  RunWait %7z% x %path%, %destDir%
+  RunWait %comspec% /k ""%7z%" x "%path%"", %destDir%
 }
 
 ;;;Smart directory handling

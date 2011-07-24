@@ -1,8 +1,4 @@
-#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
-SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
-SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
-
-ToolTip2(Text, Timeout = -1, WhichToolTip = 1) {
+ToolTip2(Text, Timeout = 2000, WhichToolTip = 1) {
   ToolTip %Text%, , ,WhichToolTip
   if (Timeout > 0) {
     SetTimer TT2Remove%WhichToolTip%, % -Timeout
@@ -31,6 +27,6 @@ TT2Remove17:
 TT2Remove18:
 TT2Remove19:
 TT2Remove20:
-WhichToolTip := SubStr(A_ThisLabel, 0)
+  WhichToolTip := SubStr(A_ThisLabel, 0)
   ToolTip, , , , WhichToolTip
 return

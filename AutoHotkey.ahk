@@ -16,7 +16,7 @@ SetTitleMatchMode 2 ; Match anywhere in title
 
 WinGet explorerPid, PID, ahk_class Shell_TrayWnd
 GroupAdd explorer, ahk_pid %explorerPid%
-
+AutoReload()
 
 ;;;;;;;;;; Constants ;;;;;;;;;;
 WM_USER = 0x0400
@@ -28,6 +28,7 @@ IPC_STARTPLAY = 102
 
 ;;;;;;;;;; Lib Includes ;;;;;;;;;; (must come first for auto-execute sections to run)
 #Include lib\Clipboard.ahk
+#include lib\ClipboardData.ahk
 #Include extern\Functions.ahk
 
 
@@ -37,24 +38,59 @@ IPC_STARTPLAY = 102
 
 ;;;;;;;;;; Functions ;;;;;;;;;;
 
+isHotkeyCombo(hotkey, withinTime = 500) {
+  return ((A_PriorHotKey = hotkey) && (withinTime <= 0 || A_TimeSincePriorHotkey < withinTime))
+}
+
+handleHotkeyCombo(hotkey, sendForCombo = "", sendForDefault = "", withinTime = 500) {
+  if (isHotkeyCombo(hotkey, withinTime)) {
+    if (sendForCombo != "") {
+      Send % sendForCombo
+    }
+    return True
+  } else {
+    if (sendForDefault != "") {
+      Send % sendForDefault
+    }
+    return False
+  }
+}
+
+getHotkeyRepeatCount(withinTime = 0) {
+  static repeatCount = {}
+  thisHotKey := A_ThisHotKey
+  if ((A_PriorHotKey = thisHotKey) && (withinTime <= 0 || A_TimeSincePriorHotkey < withinTime)) {
+    repeatCount[thisHotKey]++
+  } else {
+    repeatCount[thisHotKey] := 0
+  }
+  return repeatCount[thisHotKey]
+}
+
 
 ;;;;;;;;;; Hotkeys ;;;;;;;;;;
 ;;; Send home dir
 ;;; Sending any other way than SendPlay causes it to send on keyup rather than keydown
 #\::
-  if (A_PriorHotKey = A_ThisHotKey and A_TimeSincePriorHotkey < 1000)
-    SendPlay dropbox\progs
-  else
+  count := getHotkeyRepeatCount(1000)
+  if (count = 0)
     SendPlay c:\users\russell\
-  return
+  else if (count = 1)
+    SendPlay dropbox\
+  else if (count = 2)
+    SendPlay progs\
+  else if (count = 3)
+    SendPlay ahk\
+return
   
 ;;; Minimize active window
 #Escape::WinMinimize,A
 
 ;;; Firefox
 #IfWinActive, ahk_class MozillaWindowClass
-  ;;; Clear and hide the search box
-  ^+f::Send {Control Down}f{Control Up}{Delete}{Escape}
+  ~^f::return
+  ;;; Clear and dismiss the search box on ctrl+f + ctrl+d
+  ^d::handleHotkeyCombo("~^f", "{Delete}{Esc}", "^d")
 #IfWinActive
   
 ;;; Auto-reloads the script when saved in an editor with ctrl+s
@@ -62,9 +98,12 @@ IPC_STARTPLAY = 102
   ~^s::
 #IfWinActive, WinSwitch.ahk
   ~^s::
+    AutoReload("Off")
     ToolTip, Reloading...
     Sleep 500
     Reload
+    ; Reload failed
+    AutoReload()
     ToolTip
   return
 #IfWinActive
@@ -75,7 +114,11 @@ IPC_STARTPLAY = 102
 
 ;;; IntelliJ/PhpStorm fixes
 #IfWinActive, JetBrains ahk_class SunAwtFrame
-  ^f::SendInput ^f^a ;;; Make ctrl+f not suck
+  ^f::Send ^f^a
+  ;;; Dismiss the search box on ctrl+f + ctrl+d
+  ;;; Bug in AHK causes A_PriorHotkey to be "~^f" due to its usage elsewhere in the script
+  ;;; (even though this version of hotkey still behaves as if the ~ was missing)
+  ^d::handleHotkeyCombo("~^f", "{Delete}{Esc}", "^d")
 #IfWinActive
 
 ;;; SciTE has issues with some numpad keys
@@ -87,34 +130,48 @@ IPC_STARTPLAY = 102
 ;;; Always-On-Top toggle
 #z::WinSet, AlwaysOnTop, Toggle, A
 
-;;; Paste from saved clipboard files
+;;; Paste snippets
 #v::
   ToolTip Clipboard Mode...
   Input, Key, L1,{Esc}{Enter}
   ToolTip
-  if (Key = "s")
-      ClipFile=code-span.clip
-  else if (Key = "d")
-      ClipFile=code-div.clip
-  else if (Key = "t")
-      ClipFile=clipboard.txt
-  else if (Key = "w") {
-      FileAppend, %ClipboardAll%, C:\clipboard.txt ; The file extension doesn't matter.
-      return
-  } else {
-      if (!InStr(ErrorLevel, "EndKey"))
-        SoundBeep
-      return
-  }
-
   ClipboardSave()
-  FileRead, Clipboard, *c %A_ScriptDir%\ahkclipboard\%ClipFile%
-  Send ^v
+  
+  if (Key = "s") {
+    html=
+      (LTrim
+        <span style="font-size: 10pt; font-family: 'Courier New',monospace; padding: 0 1px; color: #444444;
+                     background: #F8F8FF; border: 1px solid #DEDEDE;">x</span>
+      )
+    ClipboardSetHtml(html)
+    Send ^v
+    Send {Backspace}
+  } else if (Key = "d") {
+    html=
+      (LTrim
+        <div></div><div style="font-size: 10pt; font-family: 'Courier New',monospace; padding: 0 0.2em; color: #444444;
+                    background: #F8F8FF; border: 1px solid #DEDEDE;">
+        <br></div><div></div>
+      )
+    ClipboardSetHtml(html)
+    Send ^v
+    Send {Up}
+  } else if (Key = "e") {
+    ClipboardSetHtml("<span>x</span>")
+    Send ^v
+    Send {Backspace}
+  } else {
+    if (!InStr(ErrorLevel, "EndKey"))
+      SoundBeep
+    return
+  }
+  
+  Sleep 500
   ClipboardRestore()
 return
 
 ;;;
-#q::Send !{F4}
+$^q::Send !{F4}
   
 ;;; Fix the ridiculously broken play/pause button behavior caused by intellitype
 ;;; (set the button to disabled in the intellitype settings). Must use a keyboard
@@ -126,28 +183,29 @@ $Media_Play_Pause::
     Run winamp.exe
     WinWaitActive ahk_class BaseWindow_RootWnd
   }
-  Send {Blind}{Media_Play_Pause}
+  SendInput {Media_Play_Pause}
 return
 
 ;;; Run winamp, load media library, set to local media, focus search box
 #w::
   Run winamp.exe
-  DetectHiddenWindows on ;For finding the media library window
-  WinWait ahk_class Winamp Gen ;media library window
+  DetectHiddenWindows on ;For ml_pmp_window
+  WinWait ahk_class ml_pmp_window ;Top level window that should reflect when the media library is ready
   WinWaitActive ahk_class BaseWindow_RootWnd ;main window
-  ControlSend SysTreeView321, l
-  Sleep 100
-  ControlFocus Edit1
+  ControlFocus SysTreeView321
+  SendPlay l ;Don't SendInput/SendEvent, it triggers the win+l lockscreen
+  Sleep 50
+  Send {Tab}
 return
 
 ;;; Winamp: toggle repeat with status tooltip
-#IfWinExist ahk_class ahk_class Winamp v1.x
+#IfWinExist ahk_class Winamp v1.x
   ^!Ins::
     SendMessage WM_WA_IPC, 0, IPC_GET_REPEAT
     if (ErrorLevel != "FAIL") {
       newVal := 1 - ErrorLevel ; Toggle between 1 and 0
       SendMessage WM_WA_IPC, newVal, IPC_SET_REPEAT
-      ToolTip2("Repeat: " . (newVal ? "ON" : "OFF"), 2000)
+      ToolTip2("Repeat: " . (newVal ? "ON" : "OFF"), 1000)
     }
   return
 #IfWinExist
@@ -171,22 +229,36 @@ return
 #IfWinActive
 
 ;;; Make RWin by itself act as AppsKey
-RWin & Browser_Refresh::return
-RWin::AppsKey
+~RWin Up::
+  ; AHK takes care of bypassing the start menu
+  if (A_PriorKey = "RWin")
+      Send {AppsKey}
+return
+
+;RWin & Browser_Refresh::return
+;RWin::AppsKey
 
 ;;; Remap browser buttons to mouse buttons
 Browser_Back::LButton
 Browser_Forward::RButton
 
-;;; Replace mintty's buggy intra-app window switching
+;;; mintty
 #IfWinActive ahk_class mintty
+  ;;; Replace mintty's buggy intra-app window switching
   ^+Tab::WinSwitch(-1)
   ^Tab::WinSwitch(1)
+  ;;; mintty sends the same control sequence for space and shift+space
+  ;;; so this mapping has to be set externally
+  +Space::Send {Esc}
 #IfWinActive
 
 ;;; Show the start menu
-#+r::SendEvent {Blind}{RWin up}{Shift up}{RWin}
-  
+#+r::Send ^{Esc} ; Doing it with the WinKey gets messy
+ 
+;;; Show the run dialog
+;#^+r::Send {RWin down}r{RWin up}
+
+
 ;;; Restore focus to the previously focused window (rather than the taskbar window)
 ;;; when pressing Esc in the run dialog or start menu
 #IfWinActive Run ahk_class #32770 ahk_group explorer
@@ -201,19 +273,82 @@ Browser_Forward::RButton
   ^s::
     fileName := GetSelectionViaClipboard()
     SplitPath fileName, , , , nameNoExt
-    shortcutPath := EnvGet("HOMEDRIVE") . EnvGet("HOMEPATH") . "\dropbox\progs\shortcuts\" . nameNoExt . ".lnk"
+    shortcutPath := EnvGet("USERPROFILE") . "\dropbox\progs\shortcuts\" . nameNoExt . ".lnk"
     FileCreateShortcut % fileName, % shortcutPath
     Run explorer /select`,%shortcutPath%
   return
   ;;; Edit
   ^e::Send {AppsKey}e
+  ;;; Sometimes explorer windows don't respond to Ctrl+W. They always respond to Alt+F4.
+  ^w::Send !{F4}
+  ;;;
+  ^+Tab::WinSwitch(-1)
+  ^Tab::WinSwitch(1)
+#IfWinActive
+
+;;; Remote Desktop 
+#IfWinActive ahk_class TscShellContainerClass
+  ; Almost all keys are swallowed by remote desktop's keyboard hook which gets installed
+  ; on top of AHK's. CapsLock is an exception, which makes it the perfect key to bind to.
+  ;
+  ; Be careful if an Alt or Win modifier here. The modifier's keyup event may trigger a
+  ; system action. AHK is supposed to work around this but it doesn't seem to work in this
+  ; case. See http://www.autohotkey.com/forum/topic22378.html for a related discussion.
+  ^+CapsLock::
+    ; Need a short sleep here for focus to restore properly.
+    Sleep 50
+    WinMinimize
+  return
+#IfWinActive
+
+;;; Notepad2
+#IfWinActive ahk_class Notepad2U
+  ;;; Copy line if nothing selected
+  ^c::
+    StatusBarGetText status
+    if (InStr(status, "Sel Ln 0")) {
+      Send ^+c
+      return
+    }
+    send ^c
+  return
+  
+  ;;; Cut line if nothing selected
+  ^x::
+    StatusBarGetText status
+    if (InStr(status, "Sel Ln 0")) {
+      Send ^+x
+      return
+    }
+    send ^x
+  return
+
+  ^d::Send ^+d
+  ^w::Send !{F4}
+  ^+w::Send ^w
+  ^/::Send ^q
 #IfWinActive
 
 ;;; Convert clipboard to plain text
 #c::Clipboard := Clipboard
 
+;;; Close system tray balloon notification
+#+b::SendMessage 0x41c, , , , ahk_class tooltips_class32 ;TTM_POP=0x41c
+
+;;; Fix weird behavior with right-alt key in X-Windows
+#IfWinActive ahk_class cygwin/x X rl
+  RAlt::LAlt
+#IfWinActive
+
+;;;;;;;;;; Hotstrings ;;;;;;;;;;
+:*:dp\::c:\users\russell\dropbox\progs\
 
 
 ;;;;;;;;;; Testing ;;;;;;;;;;
-#Numpad5::
+F13::
+  MsgBox % A_PriorKey
+return
+
+F14::
+  ClipboardSetHtml("<b>test</b>")
 return
